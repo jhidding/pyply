@@ -6,13 +6,6 @@ import sys, itertools, struct
 from exceptions import RuntimeError, TypeError, NotImplementedError
 from collections import namedtuple
 
-def partition(pred, data,
-		tee  = itertools.tee, 
-		fit = itertools.ifilter, 
-		fif = itertools.ifilterfalse):
-	t1, t2 = itertools.tee(data)
-	return fit(pred, t1), fif(pred, t2)
-
 class ReaderIterator:
 	"""Iterates through a set of readers and a byte-string.
 
