@@ -14,7 +14,25 @@ def partition(pred, data,
 	return fit(pred, t1), fif(pred, t2)
 
 class ReaderIterator:
-	def __init__(self, readers, data, offset):
+	"""Iterates through a set of readers and a byte-string.
+
+	arguments:
+		readers   - iterator of reader functions
+		data      - a byte-string
+		[offset]  - offset in the string to start reading
+
+	A reader function is a function that takes the data
+	and an offset as arguments and returns a converted
+	item and a new offset. This object iterates over the
+	data by chaining calls to a set of readers. If a
+	single reader needs to be called several times it may
+	be duplicated by using itertools.repeat().
+	
+	Once the set of reader functions is encapsulated
+	in this iterator, the user doesn't need to care
+	about the inner workings of a reader function."""
+
+	def __init__(self, readers, data, offset = 0):
 		self.readers = readers
 		self.data = data
 		self.offset = offset
@@ -28,6 +46,18 @@ class ReaderIterator:
 		return result
 
 class PlyElement:
+	""""Contains information about a PLY element. An element
+	is a list of properties with a name and a count.
+	
+	arguments:
+		name       - name of the element
+		count      - number of items in the file
+		properties - list of PlyProperty of this element
+	
+	The method 'make_reader' returns a 'reader'	function that
+	reads out 'count' number of items as described by the list
+	of properties from a byte-string."""
+
 	def __init__(self, name, count, properties):
 		self.name = name
 		self.count = count
@@ -55,6 +85,25 @@ class PlyElement:
 		return reader
 		
 class PlyProperty:
+	"""Contains information about a PLY property.
+
+	arguments:
+		name  - name of the property
+		dtype - list of strings denoting the type
+
+	The PLY file format knows about the following types:
+		(u)char (1 byte), (u)short (2 bytes), (u)int (4 bytes),
+		float (4 bytes), double (8 bytes)
+	In the case of a single value, the dtype list contains
+	a single string denoting one of these types.
+	PLY also supports variable sized lists. Then the dtype list
+	contains three strings, the first of which is 'list',
+	the second is the integer type used to denote the length of
+	the list, and the last is the type of items in the list.
+
+	The method 'make_reader' returns a 'reader' function, that
+	reads out a single value or list as described by the dtype."""
+
 	def __init__(self, name, dtype):
 		self.name = name
 		self.dtype = dtype
@@ -74,16 +123,19 @@ class PlyProperty:
 		ff = file_format.split('_')
 		if ff[0] == 'binary' and ff[1] in ['little', 'big']:
 			if self.is_list():
-				return self.make_binary_list_reader(self.dtype[1], self.dtype[2], ff[1])
+				return self._make_binary_list_reader(self.dtype[1], self.dtype[2], ff[1])
 			else:
-				return self.make_binary_reader(self.dtype[0], ff[1])
+				return self._make_binary_reader(self.dtype[0], ff[1])
 		
 		if ff[0] == 'ascii':
-			return self.make_ascii_reader()
+			if self.is_list():
+				return self._make_ascii_list_reader(self.dtype[2])
+			else:
+				return self._make_ascii_reader(self.dtype[0])
 
 		raise RuntimeError("Invalid file format specifier: " + file_format)
 
-	def make_binary_reader(self, dtype, endianness, varsize = False):
+	def _make_binary_reader(self, dtype, endianness, varsize = False):
 		tr = { 'little': '<', 'big':    '>',
 			   'uchar':  'B', 'char':   'b',
 			   'ushort': 'H', 'short':  'h',
@@ -109,20 +161,36 @@ class PlyProperty:
 				
 			return reader
 
-	def make_binary_list_reader(self, stype, dtype, endianness):
-		size_reader = self.make_binary_reader(stype, endianness)
-		list_reader = self.make_binary_reader(dtype, endianness, varsize=True)
+	def _make_binary_list_reader(self, stype, dtype, endianness):
+		size_reader = self._make_binary_reader(stype, endianness)
+		list_reader = self._make_binary_reader(dtype, endianness, varsize=True)
 
 		def reader(data, offset):
 			count, offset = size_reader(data, offset)
 			return list_reader(data, offset, count)
 
 		return reader
-			
-	def make_ascii_reader(self):
+	
+	def _make_ascii_list_reader(self, dtype):
+		raise NotImplementedError("For the moment this module reads binary only.")
+
+	def _make_ascii_reader(self, dtype):
 		raise NotImplementedError("For the moment this module reads binary only.")
 
 class PlyReader:
+	"""Reads a PLY file.
+
+	arguments:
+		f         - a filename or 'file' instance.
+		[verbose] - wether to print info on the PLY file
+
+	To read a PLY file, just do:
+		> data = PlyReader("foo.ply").read_data()
+	Then data is a 'namedtuple' with each item in the tuple
+	being an 'element' from the PLY file, itself being a
+	list of named tuples, where each item is a property of
+	the element at hand."""
+
 	def __init__(self, f, verbose = False):
 		self.verbose = verbose
 		
@@ -197,7 +265,7 @@ class PlyReader:
 		PLY = namedtuple(name, field_names)
 
 		data = self.f.read()
-		return PLY(*ReaderIterator(iter(readers), data, 0))
+		return PLY(*ReaderIterator(iter(readers), data))
 
 if __name__ == "__main__":
 	fn = sys.argv[1]
@@ -205,6 +273,6 @@ if __name__ == "__main__":
 	data = P.read_data()
 	
 	for v in vars(data):
-		print(v, len(vars(data)[v]))
+		print(v, len(vars(data)[v]), [v for v in vars(vars(data)[v][0])])
 
 # vim:sw=4:ts=4
