@@ -1,0 +1,4 @@
+This Python module reads PLY files, also known as Stanford Triangle Format.
+The "__main__" part of the module reads a .PLY file given as command-line argument,
+and prints some info on the file.
+
