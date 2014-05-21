@@ -133,10 +133,10 @@ def convert_walls():
 	density_data = np.array([e.density for e in wall_data.face])
 
 	N_eff = 12
-	levels = np.linspace(30, 200, N_eff-1)
+	levels = np.linspace(np.sqrt(30), np.sqrt(150), N_eff-1)**2
 	c0 = lambda x: x <= levels[0]
 	cn = lambda x: x > levels[-1]
-	criteria = [c0] + [(lambda x: levels[_i] < x <= levels[_i+1]) for _i in range(N_eff-2)] + [cn]
+	criteria = [c0] + [make_crit(levels[_i], levels[_i+1]) for _i in range(N_eff-2)] + [cn]
 
 	mesh = collada.Collada()
 	vert_src = collada.source.FloatSource("wall-vertices", vertex_data, ('X', 'Y', 'Z'))
@@ -145,18 +145,20 @@ def convert_walls():
 	input_list = collada.source.InputList()
 	input_list.addInput(0, 'VERTEX', "#wall-vertices")
 
-	for i in range(N_eff):
-		subdata = [np.array(f.vertex_index) for f in wall_data.face if criteria[i](f.density)]
-		face_set = geom.createPolygons(subdata, input_list, "materialref-{0}".format(i))
-		geom.primitives.append(face_set)
+	face_set = [geom.createPolygons(
+            [np.array(f.vertex_index) 
+                for f in wall_data.face if criteria[j](f.density)],
+            input_list, "materialref-{0}".format(j))
+        for j in range(N_eff)]
+	geom.primitives.extend(face_set)
 	
 	mesh.geometries.append(geom)
 	# add material
 	for i in range(N_eff):
-		print(pal1(i/N_eff))
+		print(pal1(float(i)/N_eff))
 
 	effects = [collada.material.Effect("wall-effect-{0}".format(i), [], "phong", 
-				diffuse=pal1(float(i)/N_eff), transparency=float(i)/N_eff)
+				diffuse=pal1(float(i)/N_eff), transparent=(0,0,0), transparency=float(i)/N_eff)
 		for i in range(N_eff)]
 	materials = [collada.material.Material("wall-{0}".format(i), "level {0}".format(i), effects[i])
 		for i in range(N_eff)]
@@ -196,6 +198,11 @@ def wall_hist():
 	bins = (bin_edges[1:] + bin_edges[:-1]) / 2
 	for i in np.c_[hist, bins]:
 		print(" ".join([str(s) for s in i]))
+
+def make_crit(a, b):
+	def f(x):
+		return a < x <= b
+	return f
 
 if __name__ == "__main__":
 	convert_walls()
