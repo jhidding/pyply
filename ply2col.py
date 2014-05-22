@@ -53,7 +53,7 @@ def test():
 	mesh.geometries.append(geom)
 
 	# add material
-	effect = collada.material.Effect("effect0", [], "phong", diffuse=(1, 0, 0))
+	effect = collada.material.Effect("effect0", [], "lambert", diffuse=(0,1,0,0.5), transparent=(1, 0, 0), transparency=0.5)
 	mat = collada.material.Material("material0", "mymaterial", effect)
 	mesh.effects.append(effect)
 	mesh.materials.append(mat)
@@ -121,6 +121,9 @@ def cut(x):
 def pal1(x):
 	return (cut(x),cut(2*(x-0.5)),cut(x**2-0.5))
 
+def pal2(x):
+	return (1, cut(np.fabs(x-0.5)*2), cut(0.5-x)*2)
+
 def convert_walls():
 	fn1 = sys.argv[1] + ".walls.ply"
 	fn2 = sys.argv[1] + ".filam.ply"
@@ -158,7 +161,7 @@ def convert_walls():
 		print(pal1(float(i)/N_eff))
 
 	effects = [collada.material.Effect("wall-effect-{0}".format(i), [], "phong", 
-				diffuse=pal1(float(i)/N_eff), transparent=(0,0,0), transparency=float(i)/N_eff)
+				diffuse=pal1(float(i)/N_eff), transparent=(1,1,1), transparency=float(i)/N_eff)
 		for i in range(N_eff)]
 	materials = [collada.material.Material("wall-{0}".format(i), "level {0}".format(i), effects[i])
 		for i in range(N_eff)]
@@ -205,6 +208,8 @@ def make_crit(a, b):
 	return f
 
 if __name__ == "__main__":
+	#print(collada.material.Effect.shaders)
 	convert_walls()
+	#test()
 
 # vim:sw=4:ts=4
